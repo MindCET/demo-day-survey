@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, auth, handleFirestoreError, OperationType, loginWithGoogle } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, query, orderBy, getDoc } from 'firebase/firestore';
 import { Startup, GlobalSettings, PollStatus, Vote } from '../types';
 import { Wallet, Info, CheckCircle2, TrendingUp, Volume2, VolumeX } from 'lucide-react';
@@ -20,13 +20,16 @@ export default function InvestorView() {
   const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', { volume: 0.5 });
   const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3', { volume: 0.5 });
 
-  const [user, setUser] = useState(auth.currentUser);
+  const [sessionId, setSessionId] = useState<string>('');
 
   useEffect(() => {
-    const unsubAuth = auth.onAuthStateChanged((u) => {
-      setUser(u);
-      if (u) checkVoted(u.uid);
-    });
+    let sid = localStorage.getItem('voter_session_id');
+    if (!sid) {
+      sid = 'voter_' + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('voter_session_id', sid);
+    }
+    setSessionId(sid);
+    checkVoted(sid);
 
     const unsubStartups = onSnapshot(query(collection(db, 'startups'), orderBy('order')), (snap) => {
       setStartups(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Startup));
@@ -37,7 +40,6 @@ export default function InvestorView() {
     }, (error) => handleFirestoreError(error, OperationType.GET, 'config/global'));
 
     return () => { 
-      unsubAuth();
       unsubStartups(); 
       unsubSettings(); 
     };
@@ -49,10 +51,6 @@ export default function InvestorView() {
       setAllocations((voteSnap.data() as Vote).allocations);
       setSubmitted(true);
     }
-  };
-
-  const handleLogin = async () => {
-    await loginWithGoogle();
   };
 
   const totalAllocated = useMemo(() => 
@@ -72,12 +70,12 @@ export default function InvestorView() {
   };
 
   const submitVote = async () => {
-    if (!auth.currentUser || !settings) return;
+    if (!sessionId || !settings) return;
     if (settings.pollStatus !== PollStatus.ACTIVE) return;
 
-    const voteRef = doc(db, 'votes', auth.currentUser.uid);
+    const voteRef = doc(db, 'votes', sessionId);
     await setDoc(voteRef, {
-      investorId: auth.currentUser.uid,
+      investorId: sessionId,
       allocations,
       totalAllocated,
       timestamp: new Date().toISOString()
@@ -94,28 +92,6 @@ export default function InvestorView() {
   };
 
   if (!settings) return null;
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-8 text-center bg-mindcet-blue">
-        <Header />
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass p-10 rounded-3xl max-w-md w-full">
-          <div className="w-20 h-20 bg-mindcet-orange/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <TrendingUp className="text-mindcet-orange w-10 h-10" />
-          </div>
-          <h2 className="text-2xl font-display font-bold mb-4">Elite Investor Portal</h2>
-          <p className="text-white/60 mb-8">Welcome to MindCET Demo Day. Identify yourself as an investor to start allocating capital.</p>
-          <button 
-            onClick={handleLogin}
-            className="w-full bg-white text-mindcet-blue hover:bg-gray-100 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl"
-          >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-            ENTER AS INVESTOR
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
 
   if (settings.pollStatus === PollStatus.DRAFT) {
     return (

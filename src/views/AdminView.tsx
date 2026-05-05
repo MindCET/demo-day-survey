@@ -1,9 +1,10 @@
 
 import { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType, seedDemoData } from '../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType, seedDemoData, loginWithGoogle } from '../lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, query, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { Startup, GlobalSettings, PollStatus } from '../types';
-import { Trash2, Edit, Plus, Save, Play, Square, RotateCcw, Database } from 'lucide-react';
+import { Trash2, Edit, Plus, Save, Play, Square, RotateCcw, Database, Shield, Snowflake } from 'lucide-react';
+import { motion } from 'motion/react';
 import Header from '../components/Header';
 
 export default function AdminView() {
@@ -12,8 +13,13 @@ export default function AdminView() {
   const [isEditingStartup, setIsEditingStartup] = useState<string | null>(null);
   const [newStartup, setNewStartup] = useState<Partial<Startup>>({ name: '', description: '', imageUrl: '' });
   const [isSeeding, setIsSeeding] = useState(false);
+  const [user, setUser] = useState(auth.currentUser);
 
   useEffect(() => {
+    const unsubAuth = auth.onAuthStateChanged((u) => {
+      setUser(u);
+    });
+
     const unsubStartups = onSnapshot(query(collection(db, 'startups'), orderBy('order')), (snap) => {
       setStartups(snap.docs.map(d => ({ ...d.data(), id: d.id }) as Startup));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'startups'));
@@ -22,7 +28,7 @@ export default function AdminView() {
       if (snap.exists()) setSettings(snap.data() as GlobalSettings);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'config/global'));
 
-    return () => { unsubStartups(); unsubSettings(); };
+    return () => { unsubAuth(); unsubStartups(); unsubSettings(); };
   }, []);
 
   const handleSeed = async () => {
@@ -40,9 +46,14 @@ export default function AdminView() {
 
   const clearAllPoints = async () => {
     if (!confirm("Delete ALL startups and ALL votes?")) return;
-    // Simple clear for demo
     const sSnap = await getDocs(collection(db, 'startups'));
     sSnap.forEach(d => deleteDoc(d.ref));
+    const vSnap = await getDocs(collection(db, 'votes'));
+    vSnap.forEach(d => deleteDoc(d.ref));
+  };
+
+  const clearResults = async () => {
+    if (!confirm("Delete ALL votes? Startups will remain.")) return;
     const vSnap = await getDocs(collection(db, 'votes'));
     vSnap.forEach(d => deleteDoc(d.ref));
   };
@@ -50,6 +61,11 @@ export default function AdminView() {
   const updateStatus = async (status: PollStatus) => {
     const ref = doc(db, 'config', 'global');
     await updateDoc(ref, { pollStatus: status });
+  };
+
+  const toggleFreeze = async () => {
+    const ref = doc(db, 'config', 'global');
+    await updateDoc(ref, { frozen: !settings?.frozen });
   };
 
   const addStartup = async () => {
@@ -68,6 +84,28 @@ export default function AdminView() {
   };
 
   if (!settings) return null;
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-8 text-center bg-mindcet-blue">
+        <Header />
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass p-10 rounded-3xl max-w-md w-full">
+          <div className="w-20 h-20 bg-mindcet-orange/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Shield className="text-mindcet-orange w-10 h-10" />
+          </div>
+          <h2 className="text-2xl font-display font-bold mb-4">Admin Portal</h2>
+          <p className="text-white/60 mb-8">Restricted access. Please identify yourself to manage the poll.</p>
+          <button 
+            onClick={() => loginWithGoogle()}
+            className="w-full bg-white text-mindcet-blue hover:bg-gray-100 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+            ADMIN LOGIN
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-20 p-4 md:p-8 max-w-5xl mx-auto">
@@ -101,8 +139,30 @@ export default function AdminView() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <button 
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={toggleFreeze}
+                className={`flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all border ${
+                  settings.frozen
+                    ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 hover:bg-cyan-500/30'
+                    : 'bg-white/5 border-white/20 hover:bg-white/10'
+                }`}
+              >
+                <Snowflake size={18} />
+                {settings.frozen ? 'UNFREEZE' : 'FREEZE'}
+              </button>
+              <button
+                onClick={() => updateStatus(PollStatus.ENDED)}
+                disabled={settings.pollStatus === PollStatus.ENDED}
+                className="flex items-center justify-center gap-2 bg-red-600/80 hover:bg-red-500/80 py-3 rounded-xl font-bold transition-all disabled:opacity-40"
+              >
+                <Square size={18} />
+                STOP
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <button
                 onClick={handleSeed}
                 disabled={isSeeding}
                 className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all disabled:opacity-50"
@@ -110,7 +170,14 @@ export default function AdminView() {
                 <Database size={18} />
                 {isSeeding ? 'SEEDING...' : 'SEED DEMO'}
               </button>
-              <button 
+              <button
+                onClick={clearResults}
+                className="flex items-center justify-center gap-2 bg-orange-900/40 hover:bg-orange-800/40 py-3 rounded-xl font-bold transition-all border border-orange-500/20"
+              >
+                <Trash2 size={18} />
+                CLEAR RESULTS
+              </button>
+              <button
                 onClick={clearAllPoints}
                 className="flex items-center justify-center gap-2 bg-red-900/40 hover:bg-red-800/40 py-3 rounded-xl font-bold transition-all border border-red-500/20"
               >

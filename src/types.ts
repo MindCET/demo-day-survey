@@ -25,4 +25,5 @@ export interface GlobalSettings {
   totalBudget: number;
   minAllocation: number;
   title: string;
+  frozen?: boolean;
 }
