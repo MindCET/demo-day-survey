@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, initSettings } from './lib/firebase';
+import { auth, initSettings, handleRedirectResult } from './lib/firebase';
 import AdminView from './views/AdminView';
 import InvestorView from './views/InvestorView';
 import DisplayView from './views/DisplayView';
@@ -13,9 +13,10 @@ export default function App() {
   useEffect(() => {
     const init = async () => {
       try {
+        await handleRedirectResult();
         await initSettings();
       } catch (err) {
-        console.warn("Init settings failed:", err);
+        console.warn("Init failed:", err);
       } finally {
         setLoading(false);
       }

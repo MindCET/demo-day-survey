@@ -1,11 +1,11 @@
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, onSnapshot, query, orderBy, addDoc, getDocs } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app);
 export const auth = getAuth();
 const googleProvider = new GoogleAuthProvider();
 
@@ -19,11 +19,15 @@ export enum OperationType {
 }
 
 export const loginWithGoogle = async () => {
+  await signInWithRedirect(auth, googleProvider);
+};
+
+export const handleRedirectResult = async () => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    const result = await getRedirectResult(auth);
+    return result?.user || null;
   } catch (error) {
-    console.error("Login failed:", error);
+    console.error("Redirect result failed:", error);
     throw error;
   }
 };

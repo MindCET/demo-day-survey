@@ -52,11 +52,7 @@ export default function InvestorView() {
   };
 
   const handleLogin = async () => {
-    try {
-      await loginWithGoogle();
-    } catch (e) {
-      alert("Login failed. Please try again.");
-    }
+    await loginWithGoogle();
   };
 
   const totalAllocated = useMemo(() => 
