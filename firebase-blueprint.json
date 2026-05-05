@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Startup": {
+      "title": "Startup",
+      "description": "A startup competing in the demo day.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "order": { "type": "integer" }
+      },
+      "required": ["name", "id"]
+    },
+    "Vote": {
+      "title": "Vote",
+      "description": "An allocation of funds from an investor.",
+      "type": "object",
+      "properties": {
+        "investorId": { "type": "string" },
+        "allocations": {
+          "type": "object",
+          "description": "Map of startupId to amount allocated."
+        },
+        "totalAllocated": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["investorId", "allocations", "totalAllocated"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global settings for the event.",
+      "type": "object",
+      "properties": {
+        "pollStatus": {
+          "type": "string",
+          "enum": ["draft", "active", "ended"]
+        },
+        "totalBudget": { "type": "integer" },
+        "minAllocation": { "type": "integer" },
+        "title": { "type": "string" }
+      },
+      "required": ["pollStatus", "totalBudget"]
+    }
+  },
+  "firestore": {
+    "startups": {
+      "schema": "Startup",
+      "description": "The list of startups participating."
+    },
+    "votes": {
+      "schema": "Vote",
+      "description": "The casted votes (allocations)."
+    },
+    "config": {
+      "schema": "Settings",
+      "description": "Singleton configuration document (id: 'global')."
+    }
+  }
+}

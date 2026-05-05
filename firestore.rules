@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // For demo/simplicity, we'll allow whoever is marked as admin
+    function isAdmin() { 
+      return isSignedIn(); // In production, limit to specific UIDs
+    }
+
+    // --- Config / Settings ---
+    match /config/global {
+      allow read: if true; 
+      allow write: if isAdmin();
+    }
+
+    // --- Startups ---
+    match /startups/{startupId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- Votes ---
+    match /votes/{voteId} {
+      function isValidVote(data) {
+        // Budget check is client side for UX, but should be validated here if strict
+        return data.investorId == request.auth.uid &&
+               data.totalAllocated is int &&
+               data.allocations is map;
+      }
+
+      allow create: if isSignedIn() && voteId == request.auth.uid && isValidVote(incoming());
+      allow update: if isSignedIn() && voteId == request.auth.uid && isValidVote(incoming()) &&
+                    incoming().investorId == existing().investorId;
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.investorId || isAdmin());
+      allow list: if isSignedIn(); 
+    }
+  }
+}

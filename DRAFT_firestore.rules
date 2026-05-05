@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // Only those in 'admins' collection are admins.
+    function isAdmin() { 
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // --- Config / Settings ---
+    match /config/global {
+      allow read: if true; // Publicly readable for all participants
+      allow write: if isAdmin();
+    }
+
+    // --- Startups ---
+    match /startups/{startupId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- Votes ---
+    match /votes/{voteId} {
+      function isValidVote(data) {
+        let budget = get(/databases/$(database)/documents/config/global).data.totalBudget;
+        let status = get(/databases/$(database)/documents/config/global).data.pollStatus;
+        return status == 'active' &&
+               data.investorId == request.auth.uid &&
+               data.totalAllocated is int &&
+               data.totalAllocated <= budget &&
+               data.totalAllocated >= 0 &&
+               data.allocations is map;
+      }
+
+      allow create: if isSignedIn() && voteId == request.auth.uid && isValidVote(incoming());
+      allow update: if isSignedIn() && voteId == request.auth.uid && isValidVote(incoming()) &&
+                    incoming().investorId == existing().investorId;
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.investorId || isAdmin());
+      
+      // Special: Allow display screen to read all votes for aggregation
+      // In a real refined app, we would use a collection group or specific role for the display.
+      // For simplicity here, if the user is signed in, they can LIST votes to aggregate (for the display screen).
+      allow list: if isSignedIn(); 
+    }
+
+    // --- Admins collection (seeded by agent/manual) ---
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if false; // Only manageable through console or initial seed
+    }
+  }
+}
