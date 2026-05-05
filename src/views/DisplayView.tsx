@@ -28,44 +28,7 @@ export default function DisplayView() {
     return () => { unsubStartups(); unsubVotes(); unsubSettings(); };
   }, []);
 
-  const PodiumCard = ({ item, rank, maxAmount }: { item: any, rank: number, maxAmount: number }) => {
-    if (!item) return <div className="h-full flex items-center justify-center text-white/10 italic">Waiting...</div>;
-    const startup = startups.find(s => s.id === item.id);
-    
-    return (
-      <motion.div 
-        className="flex flex-col items-center justify-end w-full h-full"
-      >
-        <motion.div 
-          layout
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="mb-4 flex flex-col items-center text-center px-4"
-        >
-          <div className={`w-20 h-20 rounded-2xl p-1 bg-white shadow-2xl mb-4 transform transition-transform duration-500 ${rank === 1 ? 'scale-125' : ''}`}>
-             <img src={startup?.imageUrl} className="w-full h-full object-cover rounded-xl" alt="" />
-          </div>
-          <h3 className="text-2xl font-display font-black text-white">{item.name}</h3>
-          <p className="text-mindcet-orange font-mono font-bold text-xl">${item.amount.toLocaleString()}</p>
-        </motion.div>
 
-        <motion.div 
-          layout
-          initial={{ height: 0 }}
-          animate={{ height: `${Math.max((item.amount / maxAmount) * 100, 15)}%` }}
-          transition={{ type: "spring", stiffness: 40, damping: 15 }}
-          className={`w-full min-h-[4rem] rounded-t-3xl relative overflow-hidden flex flex-col items-center justify-start py-6 ${
-            rank === 1 ? 'bg-gradient-to-b from-mindcet-orange to-orange-950/20 glass border-t-white/30' :
-            rank === 2 ? 'bg-gradient-to-b from-gray-400/50 to-gray-900/20 glass border-t-white/30' :
-            'bg-gradient-to-b from-orange-400/40 to-orange-900/20 glass border-t-white/30'
-          }`}
-        >
-          <span className="text-6xl font-display font-black opacity-30 select-none">{rank}</span>
-          {rank === 1 && <div className="absolute top-0 left-0 w-full h-full bg-white/5 animate-pulse" />}
-        </motion.div>
-      </motion.div>
-    );
-  };
 
   const [showingExamples, setShowingExamples] = useState(false);
   const [mockVotes, setMockVotes] = useState<Vote[]>([]);
@@ -77,7 +40,7 @@ export default function DisplayView() {
         setMockVotes(prev => {
           const newVotes = startups.map(s => {
             const allocations: { [key: string]: number } = {};
-            allocations[s.id] = Math.floor(Math.random() * 50000); // Increment by a smaller amount
+            allocations[s.id] = Math.floor(Math.random() * 5000); // More frequent, smaller increments
             return {
               investorId: `mock_${s.id}_${Math.random()}`,
               allocations,
@@ -87,7 +50,7 @@ export default function DisplayView() {
           });
           return [...prev, ...newVotes];
         });
-      }, 3000);
+      }, 1000);
     } else {
       setMockVotes([]);
     }
@@ -157,27 +120,54 @@ export default function DisplayView() {
         </div>
 
         {/* Podium Area (Top 3) */}
-        <div className="flex justify-center items-end gap-8 flex-initial mb-16 h-[45vh]">
-          <AnimatePresence>
+        <div className="flex justify-center items-end gap-8 flex-initial mb-16 h-[45vh] w-full max-w-5xl mx-auto">
+          <AnimatePresence mode="popLayout">
             {[
               { item: stats[1], rank: 2 },
               { item: stats[0], rank: 1 },
               { item: stats[2], rank: 3 }
             ].map((entry) => {
-              if (!entry.item) return null;
+              if (!entry.item) return <div key={`empty-${entry.rank}`} className="flex-1 max-w-[30%] h-full" />;
+              const startup = startups.find(s => s.id === entry.item.id);
+              
               return (
                 <motion.div
-                  layout
-                  key={entry.item.id}
-                  className={`h-full flex flex-col justify-end flex-1 max-w-[30%] ${
-                    entry.rank === 1 ? 'scale-110 relative z-10' : 'relative z-0'
+                  layoutId={`podium-${entry.item.id}`}
+                  key={`podium-${entry.item.id}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: entry.rank === 1 ? 1.1 : 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className={`h-full flex flex-col justify-end flex-1 max-w-[30%] w-full ${
+                    entry.rank === 1 ? 'relative z-10' : 'relative z-0'
                   }`}
                   transition={{ type: "spring", stiffness: 60, damping: 15 }}
                 >
-                  <PodiumCard item={entry.item} rank={entry.rank} maxAmount={maxAmount} />
-                </motion.div>
-              );
-            })}
+                 <div className="w-full h-48 relative mb-4">
+                    <div className="absolute bottom-0 w-full flex flex-col items-center text-center px-4">
+                      <div className="w-20 h-20 rounded-2xl p-1 bg-white shadow-2xl mb-4">
+                         <img src={startup?.imageUrl} className="w-full h-full object-cover rounded-xl" alt="" />
+                      </div>
+                      <h3 className="text-2xl font-display font-black text-white truncate w-full">{entry.item.name}</h3>
+                      <p className="text-mindcet-orange font-mono font-bold text-xl">${entry.item.amount.toLocaleString()}</p>
+                    </div>
+                 </div>
+
+                 <motion.div 
+                    initial={{ height: '15%' }}
+                    animate={{ height: `${Math.max((entry.item.amount / maxAmount) * 100, 15)}%` }}
+                    transition={{ type: "spring", stiffness: 40, damping: 15 }}
+                    className={`w-full min-h-[4rem] rounded-t-3xl relative overflow-hidden flex flex-col items-center justify-start py-6 ${
+                      entry.rank === 1 ? 'bg-gradient-to-b from-mindcet-orange to-orange-950/20 glass border-t-white/30' :
+                      entry.rank === 2 ? 'bg-gradient-to-b from-gray-400/50 to-gray-900/20 glass border-t-white/30' :
+                      'bg-gradient-to-b from-orange-400/40 to-orange-900/20 glass border-t-white/30'
+                    }`}
+                 >
+                    <span className="text-6xl font-display font-black opacity-30 select-none">{entry.rank}</span>
+                    {entry.rank === 1 && <div className="absolute top-0 left-0 w-full h-full bg-white/5 animate-pulse" />}
+                 </motion.div>
+              </motion.div>
+            );
+          })}
           </AnimatePresence>
         </div>
 
@@ -190,24 +180,29 @@ export default function DisplayView() {
           </h4>
           <div className="grid grid-cols-4 gap-6">
             <AnimatePresence mode="popLayout">
-              {stats.slice(3, 11).map((item, index) => (
-                <motion.div 
-                  key={item.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="glass p-4 rounded-2xl flex items-center gap-4 border-white/5"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-white/5 overflow-hidden border border-white/10">
-                    <img src={startups.find(s => s.id === item.id)?.imageUrl} className="w-full h-full object-cover" alt="" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h5 className="font-bold text-sm truncate">{item.name}</h5>
-                    <p className="text-mindcet-orange font-mono text-xs font-bold">${item.amount.toLocaleString()}</p>
-                  </div>
-                  <span className="text-white/20 font-black text-xl">#{index + 4}</span>
-                </motion.div>
-              ))}
+              {stats.slice(3, 11).map((item, index) => {
+                const startup = startups.find(s => s.id === item.id);
+                return (
+                  <motion.div 
+                    layoutId={`grid-${item.id}`}
+                    key={`grid-${item.id}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ type: "spring", stiffness: 60, damping: 15 }}
+                    className="glass p-4 rounded-2xl flex items-center gap-4 border-white/5"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-white/5 overflow-hidden border border-white/10">
+                      <img src={startup?.imageUrl} className="w-full h-full object-cover" alt="" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h5 className="font-bold text-sm truncate">{item.name}</h5>
+                      <p className="text-mindcet-orange font-mono text-xs font-bold">${item.amount.toLocaleString()}</p>
+                    </div>
+                    <span className="text-white/20 font-black text-xl">#{index + 4}</span>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
         </div>
